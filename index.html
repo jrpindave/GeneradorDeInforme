@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generador de Informes de Visita</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --azul: #1a73e8;
+    --azul-osc: #1a1a2e;
+    --verde: #34a853;
+    --amarillo: #ffc107;
+    --gris: #e0e0e0;
+    --rojo: #ee0000;
+  }
+  body {
+    background: #f4f6fb;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    color: #222;
+    line-height: 1.5;
+  }
+
+  /* ---------- Barra superior ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    background: #fff;
+    border-bottom: 1px solid var(--gris);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    padding: 12px 24px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .topbar h1 { font-size: 16px; color: var(--azul-osc); white-space: nowrap; }
+  .topbar .spacer { flex: 1; }
+  .save-state { font-size: 12px; color: #888; min-width: 90px; }
+  button {
+    font-family: inherit; font-size: 13px; cursor: pointer;
+    border: 1px solid var(--gris); background: #fff; color: #333;
+    padding: 8px 14px; border-radius: 6px; transition: all .12s;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  button:hover { background: #f0f4ff; border-color: var(--azul); }
+  button.primary { background: var(--azul); color: #fff; border-color: var(--azul); }
+  button.primary:hover { background: #1557b0; }
+  button.danger { color: #c5221f; border-color: #f3c2c0; }
+  button.danger:hover { background: #fde8e7; }
+  button.small { padding: 4px 9px; font-size: 12px; }
+
+  /* ---------- Contenedor ---------- */
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 28px 24px 80px; }
+  .titulo-input {
+    width: 100%; font-size: 22px; font-weight: 700; color: var(--azul-osc);
+    border: none; border-bottom: 3px solid var(--azul); padding: 8px 4px;
+    margin-bottom: 28px; text-transform: uppercase; background: transparent;
+  }
+  .titulo-input:focus { outline: none; background: #f8faff; }
+
+  /* ---------- Tarjeta de ítem ---------- */
+  .item {
+    background: #fff; border: 1px solid var(--gris); border-radius: 10px;
+    margin-bottom: 24px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+  }
+  .item-bar {
+    display: flex; align-items: center; gap: 10px;
+    background: #f0f4ff; border-bottom: 1px solid #d0d8f0; padding: 8px 14px;
+  }
+  .item-bar .num {
+    width: 30px; height: 30px; border-radius: 50%; background: var(--azul); color: #fff;
+    font-weight: 700; display: flex; align-items: center; justify-content: center; font-size: 14px;
+  }
+  .item-bar .grow { flex: 1; }
+  .item-body { padding: 16px 18px; display: grid; gap: 14px; }
+  .field label {
+    display: block; font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .5px; color: #888; margin-bottom: 5px;
+  }
+  .field input, .field textarea {
+    width: 100%; font-family: inherit; font-size: 14px; color: #222;
+    border: 1px solid var(--gris); border-radius: 6px; padding: 8px 10px; resize: vertical;
+  }
+  .field input:focus, .field textarea:focus { outline: none; border-color: var(--azul); }
+  .row2 { display: grid; grid-template-columns: 1fr 1.4fr; gap: 14px; }
+
+  /* detecciones */
+  .det-row { display: flex; gap: 8px; margin-bottom: 6px; }
+  .det-row input { flex: 1; }
+
+  /* fotos */
+  .photos-grid { display: flex; gap: 12px; flex-wrap: wrap; }
+  .photo-thumb {
+    position: relative; width: 150px; height: 150px; border-radius: 8px;
+    border: 1px solid var(--gris); overflow: hidden; cursor: pointer; background: #f5f5f5;
+  }
+  .photo-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .photo-thumb .edit-badge {
+    position: absolute; bottom: 0; left: 0; right: 0; background: rgba(26,115,232,.9);
+    color: #fff; font-size: 11px; text-align: center; padding: 3px; font-weight: 600;
+  }
+  .photo-thumb .annot-count {
+    position: absolute; top: 6px; left: 6px; background: var(--rojo); color: #fff;
+    font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 10px;
+  }
+  .photo-thumb .del-photo {
+    position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,.6); color: #fff;
+    border: none; width: 22px; height: 22px; border-radius: 50%; padding: 0;
+    font-size: 14px; line-height: 1; display: flex; align-items: center; justify-content: center;
+  }
+  .photo-thumb .del-photo:hover { background: #c5221f; }
+  .add-photo {
+    width: 150px; height: 150px; border: 2px dashed #c5cde0; border-radius: 8px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: #8a93a8; cursor: pointer; background: #fafbff; gap: 6px; font-size: 13px;
+  }
+  .add-photo:hover { border-color: var(--azul); color: var(--azul); background: #f0f4ff; }
+  .add-photo .plus { font-size: 30px; line-height: 1; }
+  .add-photo .drop-hint { font-size: 11px; opacity: .7; }
+  .photos-grid.drag-over {
+    outline: 2px dashed var(--azul); outline-offset: 4px;
+    background: #eef4ff; border-radius: 8px;
+  }
+  .photos-grid.drag-over .add-photo { border-color: var(--azul); color: var(--azul); background: #e3edff; }
+
+  .add-item-btn {
+    width: 100%; padding: 16px; border: 2px dashed #c5cde0; background: #fafbff;
+    color: var(--azul); font-weight: 600; font-size: 15px; border-radius: 10px;
+  }
+  .add-item-btn:hover { border-color: var(--azul); background: #f0f4ff; }
+
+  .empty-hint { text-align: center; color: #999; padding: 40px; font-size: 14px; }
+
+  /* ---------- Modal editor de anotaciones ---------- */
+  .modal-bg {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 1000;
+    align-items: center; justify-content: center; padding: 16px;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: #fff; border-radius: 12px; width: 95vw; max-width: 1100px;
+    height: 92vh; max-height: 92vh;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .modal-head {
+    padding: 10px 14px; border-bottom: 1px solid var(--gris);
+    display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap;
+  }
+  .modal-head .title { font-weight: 700; font-size: 14px; margin-right: auto; }
+  .tool-group { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .tool-btn { padding: 6px 10px; font-size: 13px; border-radius: 6px; }
+  .tool-btn.active { background: var(--azul); color: #fff; border-color: var(--azul); }
+  .color-swatch { width: 26px; height: 26px; border-radius: 6px; border: 2px solid #fff; cursor: pointer; box-shadow: 0 0 0 1px #ccc; }
+  .color-swatch.active { box-shadow: 0 0 0 2px var(--azul-osc); }
+  .canvas-area {
+    flex: 1 1 auto; padding: 12px; overflow: auto; background: #2b2b2b; display: flex;
+    align-items: center; justify-content: center; min-height: 0;
+  }
+  #annotCanvas { background: #fff; cursor: crosshair; touch-action: none; display: block; }
+  .modal-foot {
+    padding: 10px 14px; border-top: 1px solid var(--gris);
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
+  .modal-foot .hint { flex-basis: 100%; font-size: 12px; color: #888; order: 5; }
+  .modal-foot .grow { flex: 1; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button:disabled:hover { background: #fff; border-color: var(--gris); }
+  input[type=range] { width: 90px; }
+  .hidden { display: none !important; }
+
+  /* ---------- Ajustes para celular ---------- */
+  @media (max-width: 640px) {
+    .topbar { padding: 8px 12px; gap: 8px; }
+    .topbar h1 { font-size: 14px; }
+    .modal-bg { padding: 0; }
+    .modal { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; }
+    .modal-head { padding: 8px 10px; gap: 6px; }
+    .modal-head .title { display: none; }
+    .tool-btn { padding: 6px 8px; font-size: 12px; }
+    .canvas-area { padding: 8px; }
+    .modal-foot { padding: 8px 10px; gap: 6px; }
+    .modal-foot button { flex: 1 1 auto; justify-content: center; }
+    input[type=range] { width: 70px; }
+  }
+</style>
+</head>
+<body>
+
+<noscript>
+  <div style="background:#fff3cd;border:1px solid #ffe69c;color:#664d03;padding:16px 20px;margin:16px;border-radius:8px;font-family:'Segoe UI',Arial,sans-serif;font-size:14px;line-height:1.5">
+    ⚠️ <strong>Esta aplicación necesita un navegador.</strong><br>
+    Parece que la abriste desde un visor que no permite interactividad (por ejemplo, dentro de WhatsApp, correo o la app de OneDrive).<br>
+    <strong>Ábrela en Chrome o Safari:</strong> usa el menú ⋮ o el botón de compartir y elige <em>“Abrir en el navegador”</em>.
+  </div>
+</noscript>
+<div class="topbar">
+  <h1>📋 Generador de Informes</h1>
+  <span class="save-state" id="saveState">—</span>
+  <div class="spacer"></div>
+  <button id="btnImport">📂 Importar proyecto</button>
+  <button id="btnExportProj">💾 Exportar proyecto</button>
+  <button id="btnNew" class="danger">🗑 Nuevo</button>
+  <button id="btnExportPdf">🖨 Exportar PDF</button>
+  <button id="btnExportHtml" class="primary">⬇ Exportar HTML</button>
+  <input type="file" id="fileImport" accept="application/json" class="hidden">
+</div>
+
+<div class="wrap">
+  <input type="text" id="tituloInput" class="titulo-input" placeholder="TÍTULO DEL INFORME">
+  <div id="itemsContainer"></div>
+  <button class="add-item-btn" id="btnAddItem">+ Agregar ítem</button>
+</div>
+
+<!-- Modal editor de anotaciones -->
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <div class="modal-head">
+      <span class="title">Editor de anotaciones</span>
+      <div class="tool-group" id="toolGroup">
+        <button class="tool-btn active" data-tool="rect">▭ Rect</button>
+        <button class="tool-btn" data-tool="arrow">➜ Flecha</button>
+        <button class="tool-btn" data-tool="line">／ Línea</button>
+        <button class="tool-btn" data-tool="text">T Texto</button>
+        <button class="tool-btn" data-tool="select">✋ Mover/editar</button>
+      </div>
+      <div class="tool-group" id="colorGroup">
+        <div class="color-swatch active" data-color="#ee0000" style="background:#ee0000"></div>
+        <div class="color-swatch" data-color="#1a73e8" style="background:#1a73e8"></div>
+        <div class="color-swatch" data-color="#34a853" style="background:#34a853"></div>
+        <div class="color-swatch" data-color="#ffcc00" style="background:#ffcc00"></div>
+        <div class="color-swatch" data-color="#111111" style="background:#111111"></div>
+      </div>
+      <div class="tool-group">
+        <span style="font-size:12px;color:#888">Grosor</span>
+        <input type="range" id="widthRange" min="2" max="20" value="6">
+      </div>
+    </div>
+    <div class="canvas-area">
+      <canvas id="annotCanvas"></canvas>
+    </div>
+    <div class="modal-foot">
+      <button id="btnDeleteSel" class="danger" disabled>🗑 Borrar selección</button>
+      <button id="btnEditText" disabled>✎ Editar texto</button>
+      <button id="btnUndo">↶ Deshacer</button>
+      <button id="btnClearShapes" class="danger">Borrar todo</button>
+      <div class="grow"></div>
+      <button id="btnCloseModal">Cancelar</button>
+      <button id="btnSaveModal" class="primary">✓ Guardar</button>
+      <span class="hint">Dibuja arrastrando. Con <strong>✋ Mover/editar</strong>: toca una forma para seleccionarla, arrástrala para moverla y usa los tiradores para redimensionar.</span>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="filePhoto" accept="image/*" multiple class="hidden">
+
+<script>
+/* ============================================================
+   MODELO DE DATOS
+   project = { titulo, items: [ { id, elementos, tema, detecciones:[], propuesta, fotos:[ {id, src, shapes:[]} ] } ] }
+   shape   = { type, x1,y1,x2,y2, color, width, text? }   (coords en píxeles de la imagen original)
+   ============================================================ */
+let project = { titulo: "", items: [] };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const MAX_DIM = 1600; // reescalado de fotos
+
+/* ---------- IndexedDB (persistencia) ---------- */
+const DB_NAME = "informes_db", STORE = "proyecto", KEY = "actual";
+function dbOpen() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DB_NAME, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore(STORE);
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function dbSave(data) {
+  const db = await dbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).put(data, KEY);
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  });
+}
+async function dbLoad() {
+  const db = await dbOpen();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, "readonly");
+    const g = tx.objectStore(STORE).get(KEY);
+    g.onsuccess = () => res(g.result || null);
+    g.onerror = () => rej(g.error);
+  });
+}
+
+let saveTimer = null;
+function scheduleSave() {
+  document.getElementById("saveState").textContent = "Guardando…";
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try { await dbSave(project); document.getElementById("saveState").textContent = "✓ Guardado"; }
+    catch (e) { document.getElementById("saveState").textContent = "⚠ Error al guardar"; console.error(e); }
+  }, 500);
+}
+
+/* ---------- Reescalado de imágenes ---------- */
+function fileToScaledDataURL(file) {
+  return new Promise((res) => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let { width: w, height: h } = img;
+        if (w > MAX_DIM || h > MAX_DIM) {
+          const s = MAX_DIM / Math.max(w, h);
+          w = Math.round(w * s); h = Math.round(h * s);
+        }
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        c.getContext("2d").drawImage(img, 0, 0, w, h);
+        res(c.toDataURL("image/jpeg", 0.88));
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
+/* ============================================================
+   RENDER DE LA UI (editor)
+   ============================================================ */
+const itemsContainer = document.getElementById("itemsContainer");
+
+function render() {
+  itemsContainer.innerHTML = "";
+  if (project.items.length === 0) {
+    itemsContainer.innerHTML = '<div class="empty-hint">No hay ítems todavía. Haz clic en “+ Agregar ítem” para comenzar.</div>';
+  }
+  project.items.forEach((item, idx) => itemsContainer.appendChild(renderItem(item, idx)));
+}
+
+function renderItem(item, idx) {
+  const el = document.createElement("div");
+  el.className = "item";
+
+  // barra
+  const bar = document.createElement("div");
+  bar.className = "item-bar";
+  bar.innerHTML = `<div class="num">${idx + 1}</div><div class="grow"></div>`;
+  const mkBtn = (txt, cls, fn) => { const b = document.createElement("button"); b.className = "small " + (cls||""); b.textContent = txt; b.onclick = fn; return b; };
+  bar.appendChild(mkBtn("↑", "", () => moveItem(idx, -1)));
+  bar.appendChild(mkBtn("↓", "", () => moveItem(idx, 1)));
+  bar.appendChild(mkBtn("✕ Eliminar", "danger", () => { if (confirm("¿Eliminar este ítem?")) { project.items.splice(idx,1); render(); scheduleSave(); } }));
+  el.appendChild(bar);
+
+  // cuerpo
+  const body = document.createElement("div");
+  body.className = "item-body";
+
+  // fila elementos + tema
+  const row = document.createElement("div");
+  row.className = "row2";
+  row.appendChild(field("Elementos involucrados", item.elementos, "P101, L104…", v => { item.elementos = v; scheduleSave(); }));
+  row.appendChild(field("Tema", item.tema, "Descripción breve del tema", v => { item.tema = v; scheduleSave(); }));
+  body.appendChild(row);
+
+  // detecciones
+  const detWrap = document.createElement("div");
+  detWrap.className = "field";
+  detWrap.innerHTML = `<label>Se detectan</label>`;
+  const detList = document.createElement("div");
+  function renderDet() {
+    detList.innerHTML = "";
+    item.detecciones.forEach((d, di) => {
+      const dr = document.createElement("div");
+      dr.className = "det-row";
+      const inp = document.createElement("input");
+      inp.value = d; inp.placeholder = "Detección…";
+      inp.oninput = () => { item.detecciones[di] = inp.value; scheduleSave(); };
+      const del = document.createElement("button");
+      del.className = "small danger"; del.textContent = "✕";
+      del.onclick = () => { item.detecciones.splice(di,1); renderDet(); scheduleSave(); };
+      dr.appendChild(inp); dr.appendChild(del); detList.appendChild(dr);
+    });
+    const add = document.createElement("button");
+    add.className = "small"; add.textContent = "+ Agregar detección";
+    add.onclick = () => { item.detecciones.push(""); renderDet(); scheduleSave(); };
+    detList.appendChild(add);
+  }
+  renderDet();
+  detWrap.appendChild(detList);
+  body.appendChild(detWrap);
+
+  // fotos
+  const fotoWrap = document.createElement("div");
+  fotoWrap.className = "field";
+  fotoWrap.innerHTML = `<label>Fotos y anotaciones</label>`;
+  const grid = document.createElement("div");
+  grid.className = "photos-grid";
+  item.fotos.forEach((foto, fi) => grid.appendChild(renderThumb(item, fi)));
+  const addP = document.createElement("div");
+  addP.className = "add-photo";
+  addP.innerHTML = `<span class="plus">+</span><span>Agregar foto</span><span class="drop-hint">o arrastra aquí</span>`;
+  addP.onclick = () => triggerPhotoUpload(item);
+  grid.appendChild(addP);
+  fotoWrap.appendChild(grid);
+
+  // arrastrar y soltar archivos desde el escritorio sobre la zona de fotos
+  const onDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; grid.classList.add("drag-over"); };
+  const onDragLeave = (e) => { if (!grid.contains(e.relatedTarget)) grid.classList.remove("drag-over"); };
+  const onDrop = async (e) => {
+    e.preventDefault(); grid.classList.remove("drag-over");
+    const files = [...e.dataTransfer.files].filter(f => f.type.startsWith("image/"));
+    if (!files.length) return;
+    for (const f of files) item.fotos.push({ id: uid(), src: await fileToScaledDataURL(f), shapes: [] });
+    render(); scheduleSave();
+  };
+  grid.addEventListener("dragover", onDragOver);
+  grid.addEventListener("dragleave", onDragLeave);
+  grid.addEventListener("drop", onDrop);
+
+  body.appendChild(fotoWrap);
+
+  // propuesta
+  body.appendChild(field("Propuesta", item.propuesta, "Propuesta / solución…", v => { item.propuesta = v; scheduleSave(); }, true));
+
+  el.appendChild(body);
+  return el;
+}
+
+function field(labelTxt, value, ph, onInput, textarea) {
+  const f = document.createElement("div"); f.className = "field";
+  const lab = document.createElement("label"); lab.textContent = labelTxt;
+  const inp = document.createElement(textarea ? "textarea" : "input");
+  if (textarea) inp.rows = 2;
+  inp.value = value || ""; inp.placeholder = ph;
+  inp.oninput = () => onInput(inp.value);
+  f.appendChild(lab); f.appendChild(inp); return f;
+}
+
+function renderThumb(item, fi) {
+  const foto = item.fotos[fi];
+  const t = document.createElement("div");
+  t.className = "photo-thumb";
+  const img = document.createElement("img"); img.src = foto.src;
+  t.appendChild(img);
+  if (foto.shapes.length) {
+    const c = document.createElement("div"); c.className = "annot-count"; c.textContent = foto.shapes.length + " ✎";
+    t.appendChild(c);
+  }
+  const edit = document.createElement("div"); edit.className = "edit-badge"; edit.textContent = "✎ Anotar";
+  t.appendChild(edit);
+  const del = document.createElement("button"); del.className = "del-photo"; del.textContent = "×";
+  del.onclick = (e) => { e.stopPropagation(); item.fotos.splice(fi,1); render(); scheduleSave(); };
+  t.appendChild(del);
+  t.onclick = () => openEditor(foto);
+  return t;
+}
+
+function moveItem(idx, dir) {
+  const ni = idx + dir;
+  if (ni < 0 || ni >= project.items.length) return;
+  [project.items[idx], project.items[ni]] = [project.items[ni], project.items[idx]];
+  render(); scheduleSave();
+}
+
+/* ---------- Subida de fotos ---------- */
+let photoTargetItem = null;
+function triggerPhotoUpload(item) {
+  photoTargetItem = item;
+  document.getElementById("filePhoto").click();
+}
+document.getElementById("filePhoto").addEventListener("change", async (e) => {
+  const files = [...e.target.files];
+  for (const f of files) {
+    const src = await fileToScaledDataURL(f);
+    photoTargetItem.fotos.push({ id: uid(), src, shapes: [] });
+  }
+  e.target.value = "";
+  render(); scheduleSave();
+});
+
+/* ============================================================
+   EDITOR DE ANOTACIONES (canvas)
+   ============================================================ */
+const modal = document.getElementById("modal");
+const canvas = document.getElementById("annotCanvas");
+const ctx = canvas.getContext("2d");
+let editorFoto = null, editorShapes = [], editorImg = null;
+let curTool = "rect", curColor = "#ee0000", curWidth = 6;
+let drawing = false, previewShape = null, selectedIdx = -1;
+let dispScale = 1;
+let dragMode = null, dragHandle = -1, lastPt = null; // interacción en modo Mover/editar
+const HANDLE_R = 8; // radio del tirador (px de pantalla)
+
+function openEditor(foto) {
+  editorFoto = foto;
+  editorShapes = JSON.parse(JSON.stringify(foto.shapes)); // copia editable
+  selectedIdx = -1;
+  modal.classList.add("open");
+  updateSelUI();
+  editorImg = new Image();
+  editorImg.onload = () => { fitCanvas(); requestAnimationFrame(fitCanvas); };
+  editorImg.src = foto.src;
+  if (editorImg.complete) { fitCanvas(); requestAnimationFrame(fitCanvas); }
+}
+
+// Ajusta el canvas para caber exactamente en el área disponible del modal
+function fitCanvas() {
+  if (!editorImg || !editorImg.width) return;
+  const area = canvas.parentElement; // .canvas-area
+  const pad = 24;
+  const availW = Math.max(80, area.clientWidth - pad);
+  const availH = Math.max(80, area.clientHeight - pad);
+  dispScale = Math.min(availW / editorImg.width, availH / editorImg.height, 1);
+  canvas.width = Math.round(editorImg.width * dispScale);
+  canvas.height = Math.round(editorImg.height * dispScale);
+  redraw();
+}
+window.addEventListener("resize", () => { if (modal.classList.contains("open")) fitCanvas(); });
+window.addEventListener("orientationchange", () => { if (modal.classList.contains("open")) setTimeout(fitCanvas, 250); });
+
+function redraw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(editorImg, 0, 0, canvas.width, canvas.height);
+  editorShapes.forEach((s, i) => drawShape(ctx, s, dispScale, curTool === "select" && i === selectedIdx));
+  if (previewShape) drawShape(ctx, previewShape, dispScale, false);
+}
+
+// dibuja una forma. coords de la forma están en px de imagen original → multiplicar por scale
+function drawShape(c, s, scale, selected) {
+  c.save();
+  c.strokeStyle = s.color; c.fillStyle = s.color;
+  c.lineWidth = Math.max(1, s.width * scale);
+  c.lineJoin = "round"; c.lineCap = "round";
+  const x1 = s.x1 * scale, y1 = s.y1 * scale, x2 = s.x2 * scale, y2 = s.y2 * scale;
+  if (s.type === "rect") {
+    c.strokeRect(Math.min(x1,x2), Math.min(y1,y2), Math.abs(x2-x1), Math.abs(y2-y1));
+  } else if (s.type === "line") {
+    c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke();
+  } else if (s.type === "arrow") {
+    c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke();
+    const ang = Math.atan2(y2-y1, x2-x1), head = Math.max(10, s.width * scale * 4);
+    c.beginPath(); c.moveTo(x2,y2);
+    c.lineTo(x2 - head*Math.cos(ang - .4), y2 - head*Math.sin(ang - .4));
+    c.lineTo(x2 - head*Math.cos(ang + .4), y2 - head*Math.sin(ang + .4));
+    c.closePath(); c.fill();
+  } else if (s.type === "text") {
+    const fs = Math.max(12, s.width * scale * 3.2);
+    c.font = `bold ${fs}px 'Segoe UI', Arial, sans-serif`;
+    c.textBaseline = "top";
+    c.fillText(s.text || "", x1, y1);
+  }
+  if (selected) {
+    c.strokeStyle = "#1a73e8"; c.lineWidth = 1.5; c.setLineDash([5,4]);
+    const bb = shapeBBox(s, scale);
+    c.strokeRect(bb.x - 6, bb.y - 6, bb.w + 12, bb.h + 12);
+    c.setLineDash([]);
+    selHandles(s, scale).forEach(h => {
+      c.fillStyle = "#fff"; c.strokeStyle = "#1a73e8"; c.lineWidth = 2;
+      c.beginPath(); c.rect(h.x - HANDLE_R, h.y - HANDLE_R, HANDLE_R*2, HANDLE_R*2);
+      c.fill(); c.stroke();
+    });
+  }
+  c.restore();
+}
+
+// posiciones de los tiradores (en px de pantalla) de la forma seleccionada
+function selHandles(s, scale) {
+  if (s.type === "text") {
+    const bb = shapeBBox(s, scale);
+    return [{ id:"scale", x: bb.x + bb.w, y: bb.y + bb.h }];
+  }
+  if (s.type === "line" || s.type === "arrow") {
+    return [{ id:"p1", x:s.x1*scale, y:s.y1*scale }, { id:"p2", x:s.x2*scale, y:s.y2*scale }];
+  }
+  return [ // rect
+    { id:"tl", x:s.x1*scale, y:s.y1*scale }, { id:"tr", x:s.x2*scale, y:s.y1*scale },
+    { id:"bl", x:s.x1*scale, y:s.y2*scale }, { id:"br", x:s.x2*scale, y:s.y2*scale },
+  ];
+}
+
+function shapeBBox(s, scale) {
+  const x1 = s.x1*scale, y1 = s.y1*scale, x2 = s.x2*scale, y2 = s.y2*scale;
+  if (s.type === "text") {
+    const fs = Math.max(12, s.width*scale*3.2);
+    ctx.font = `bold ${fs}px 'Segoe UI', Arial, sans-serif`;
+    const w = ctx.measureText(s.text || "").width;
+    return { x: x1, y: y1, w, h: fs };
+  }
+  return { x: Math.min(x1,x2), y: Math.min(y1,y2), w: Math.abs(x2-x1), h: Math.abs(y2-y1) };
+}
+
+function evtPt(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: (e.clientX - r.left) / dispScale, y: (e.clientY - r.top) / dispScale };
+}
+
+// ¿el punto cae sobre un tirador de la forma seleccionada? devuelve su índice o -1
+function handleAt(p) {
+  if (selectedIdx < 0) return -1;
+  const hs = selHandles(editorShapes[selectedIdx], dispScale);
+  const px = p.x * dispScale, py = p.y * dispScale;
+  for (let i = 0; i < hs.length; i++) {
+    if (Math.hypot(hs[i].x - px, hs[i].y - py) <= HANDLE_R + 8) return i;
+  }
+  return -1;
+}
+
+function onDown(e) {
+  e.preventDefault();
+  if (canvas.setPointerCapture) { try { canvas.setPointerCapture(e.pointerId); } catch {} }
+  const p = evtPt(e);
+  lastPt = p;
+
+  if (curTool === "select") {
+    const hi = handleAt(p);
+    if (hi >= 0) { dragMode = "resize"; dragHandle = hi; return; }
+    selectedIdx = hitTest(p);
+    updateSelUI();
+    dragMode = selectedIdx >= 0 ? "move" : null;
+    redraw();
+    return;
+  }
+  if (curTool === "text") {
+    const txt = prompt("Texto de la anotación:");
+    if (txt) {
+      editorShapes.push({ type:"text", x1:p.x, y1:p.y, x2:p.x, y2:p.y, color:curColor, width:curWidth, text:txt });
+      redraw();
+    }
+    return;
+  }
+  drawing = true;
+  previewShape = { type:curTool, x1:p.x, y1:p.y, x2:p.x, y2:p.y, color:curColor, width:curWidth };
+}
+
+function onMove(e) {
+  const p = evtPt(e);
+  if (drawing) {
+    e.preventDefault();
+    previewShape.x2 = p.x; previewShape.y2 = p.y; redraw(); return;
+  }
+  if (dragMode && selectedIdx >= 0) {
+    e.preventDefault();
+    const s = editorShapes[selectedIdx];
+    if (dragMode === "move") {
+      const dx = p.x - lastPt.x, dy = p.y - lastPt.y;
+      s.x1 += dx; s.y1 += dy; s.x2 += dx; s.y2 += dy;
+    } else if (dragMode === "resize") {
+      applyResize(s, dragHandle, p);
+    }
+    lastPt = p; redraw();
+  }
+}
+
+function onUp() {
+  if (drawing) {
+    drawing = false;
+    const dx = Math.abs(previewShape.x2 - previewShape.x1), dy = Math.abs(previewShape.y2 - previewShape.y1);
+    if (dx > 4 || dy > 4) editorShapes.push(previewShape);
+    previewShape = null;
+    redraw();
+  }
+  dragMode = null; dragHandle = -1;
+}
+
+// redimensiona la forma s arrastrando el tirador hi hasta el punto p (px imagen)
+function applyResize(s, hi, p) {
+  if (s.type === "text") { // arrastre vertical controla el tamaño de fuente
+    const fsPx = Math.max(10, p.y - s.y1);
+    s.width = Math.max(2, Math.min(60, fsPx / 3.2));
+    return;
+  }
+  const id = selHandles(s, 1)[hi].id;
+  if (s.type === "line" || s.type === "arrow") {
+    if (id === "p1") { s.x1 = p.x; s.y1 = p.y; } else { s.x2 = p.x; s.y2 = p.y; }
+    return;
+  }
+  if (id === "tl") { s.x1 = p.x; s.y1 = p.y; }
+  else if (id === "tr") { s.x2 = p.x; s.y1 = p.y; }
+  else if (id === "bl") { s.x1 = p.x; s.y2 = p.y; }
+  else if (id === "br") { s.x2 = p.x; s.y2 = p.y; }
+}
+
+function hitTest(p) {
+  const pad = 10 / dispScale;
+  for (let i = editorShapes.length - 1; i >= 0; i--) {
+    const s = editorShapes[i];
+    let minX, minY, maxX, maxY;
+    if (s.type === "text") {
+      const bb = shapeBBox(s, 1);
+      minX = bb.x; minY = bb.y; maxX = bb.x + bb.w; maxY = bb.y + bb.h;
+    } else {
+      minX = Math.min(s.x1,s.x2); minY = Math.min(s.y1,s.y2);
+      maxX = Math.max(s.x1,s.x2); maxY = Math.max(s.y1,s.y2);
+    }
+    if (p.x>=minX-pad && p.x<=maxX+pad && p.y>=minY-pad && p.y<=maxY+pad) return i;
+  }
+  return -1;
+}
+
+canvas.addEventListener("pointerdown", onDown);
+canvas.addEventListener("pointermove", onMove);
+window.addEventListener("pointerup", onUp);
+canvas.addEventListener("pointercancel", onUp);
+canvas.addEventListener("dblclick", () => { if (curTool === "select") editSelectedText(); });
+
+document.addEventListener("keydown", (e) => {
+  if (!modal.classList.contains("open")) return;
+  if ((e.key === "Delete" || e.key === "Backspace") && selectedIdx >= 0) deleteSelected();
+});
+
+function updateSelUI() {
+  const has = selectedIdx >= 0;
+  const isText = has && editorShapes[selectedIdx].type === "text";
+  document.getElementById("btnDeleteSel").disabled = !has;
+  document.getElementById("btnEditText").disabled = !isText;
+}
+function deleteSelected() {
+  if (selectedIdx < 0) return;
+  editorShapes.splice(selectedIdx, 1); selectedIdx = -1; updateSelUI(); redraw();
+}
+function editSelectedText() {
+  if (selectedIdx < 0 || editorShapes[selectedIdx].type !== "text") return;
+  const s = editorShapes[selectedIdx];
+  const txt = prompt("Editar texto:", s.text || "");
+  if (txt !== null) { s.text = txt; redraw(); }
+}
+
+// herramientas
+document.getElementById("toolGroup").addEventListener("click", (e) => {
+  const b = e.target.closest(".tool-btn"); if (!b) return;
+  curTool = b.dataset.tool;
+  document.querySelectorAll(".tool-btn").forEach(x => x.classList.toggle("active", x === b));
+  canvas.style.cursor = curTool === "select" ? "default" : "crosshair";
+  if (curTool !== "select") { selectedIdx = -1; updateSelUI(); }
+  redraw();
+});
+document.getElementById("colorGroup").addEventListener("click", (e) => {
+  const s = e.target.closest(".color-swatch"); if (!s) return;
+  curColor = s.dataset.color;
+  document.querySelectorAll(".color-swatch").forEach(x => x.classList.toggle("active", x === s));
+});
+document.getElementById("widthRange").addEventListener("input", (e) => { curWidth = +e.target.value; });
+
+document.getElementById("btnDeleteSel").onclick = deleteSelected;
+document.getElementById("btnEditText").onclick = editSelectedText;
+document.getElementById("btnUndo").onclick = () => { editorShapes.pop(); selectedIdx = -1; updateSelUI(); redraw(); };
+document.getElementById("btnClearShapes").onclick = () => { if (confirm("¿Borrar todas las anotaciones de esta foto?")) { editorShapes = []; selectedIdx=-1; updateSelUI(); redraw(); } };
+document.getElementById("btnCloseModal").onclick = () => modal.classList.remove("open");
+document.getElementById("btnSaveModal").onclick = () => {
+  editorFoto.shapes = editorShapes;
+  modal.classList.remove("open");
+  render(); scheduleSave();
+};
+
+/* ============================================================
+   ACCIONES GLOBALES
+   ============================================================ */
+document.getElementById("tituloInput").addEventListener("input", (e) => { project.titulo = e.target.value; scheduleSave(); });
+
+document.getElementById("btnAddItem").onclick = () => {
+  project.items.push({ id: uid(), elementos:"", tema:"", detecciones:[""], propuesta:"", fotos:[] });
+  render(); scheduleSave();
+  window.scrollTo(0, document.body.scrollHeight);
+};
+
+document.getElementById("btnNew").onclick = () => {
+  if (confirm("¿Empezar un proyecto nuevo? Se perderá el actual (exporta antes si quieres conservarlo).")) {
+    project = { titulo:"", items:[] };
+    document.getElementById("tituloInput").value = "";
+    render(); scheduleSave();
+  }
+};
+
+// ---- utilidades de nombre de archivo ----
+function sanitizeName(s){ return ((s||"").trim().replace(/[\\/:*?"<>|]+/g,"_")) || "informe"; }
+function ensureExt(name, ext){ return name.toLowerCase().endsWith(ext) ? name : name + ext; }
+function askFileName(def){
+  const v = prompt("Nombre del archivo (sin extensión):", sanitizeName(def));
+  return v === null ? null : sanitizeName(v);
+}
+
+// Exportar proyecto (.json)
+document.getElementById("btnExportProj").onclick = () => {
+  const name = askFileName((project.titulo || "informe") + "_proyecto");
+  if (name === null) return;
+  const blob = new Blob([JSON.stringify(project)], {type:"application/json"});
+  downloadBlob(blob, ensureExt(name, ".json"));
+};
+// Importar proyecto
+document.getElementById("btnImport").onclick = () => document.getElementById("fileImport").click();
+document.getElementById("fileImport").addEventListener("change", (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const fr = new FileReader();
+  fr.onload = () => {
+    try {
+      project = JSON.parse(fr.result);
+      project.items = project.items || [];
+      document.getElementById("tituloInput").value = project.titulo || "";
+      render(); scheduleSave();
+    } catch { alert("Archivo de proyecto inválido."); }
+  };
+  fr.readAsText(f);
+  e.target.value = "";
+});
+
+function downloadBlob(blob, name) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+/* ---------- Fusionar foto + anotaciones a dataURL ---------- */
+function flattenFoto(foto) {
+  return new Promise((res) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      const cc = c.getContext("2d");
+      cc.drawImage(img, 0, 0);
+      foto.shapes.forEach(s => drawShape(cc, s, 1, false));
+      res(c.toDataURL("image/jpeg", 0.9));
+    };
+    img.src = foto.src;
+  });
+}
+
+/* ---------- Construir el cuerpo del informe (fusionando fotos) ---------- */
+async function buildItemsHtml() {
+  let itemsHtml = "";
+  for (let i = 0; i < project.items.length; i++) {
+    const it = project.items[i];
+    const flat = [];
+    for (const foto of it.fotos) flat.push(await flattenFoto(foto));
+    const dets = it.detecciones.filter(d => d.trim()).map(d => `<p>• ${esc(d)}</p>`).join("");
+    const photos = flat.map(src => `<img src="${src}" alt="Foto ítem ${i+1}">`).join("");
+    itemsHtml += `
+  <div class="item">
+    <div class="item-header"><div>N°</div><div>Elementos involucrados</div><div>Tema</div></div>
+    <div class="item-row"><div class="item-num">${i+1}</div><div>${esc(it.elementos)}</div><div>${esc(it.tema)}</div></div>
+    <div class="item-body">
+      ${dets ? `<div class="label">Se detectan</div><div class="detection">${dets}</div>` : ""}
+      ${photos ? `<div class="photos">${photos}</div>` : ""}
+      ${it.propuesta.trim() ? `<div class="label">Propuesta</div><div class="propuesta">${esc(it.propuesta)}</div>` : ""}
+    </div>
+  </div>`;
+  }
+  return itemsHtml;
+}
+
+/* ---------- Exportar informe HTML final ---------- */
+document.getElementById("btnExportHtml").onclick = async () => {
+  if (!project.items.length) { alert("Agrega al menos un ítem antes de exportar."); return; }
+  const name = askFileName(project.titulo || "informe");
+  if (name === null) return;
+  const btn = document.getElementById("btnExportHtml");
+  btn.disabled = true; const t = btn.textContent; btn.textContent = "Generando…";
+  try {
+    const itemsHtml = await buildItemsHtml();
+    const html = buildReportHtml(project.titulo || "Informe de Visita", itemsHtml);
+    downloadBlob(new Blob([html], {type:"text/html"}), ensureExt(name, ".html"));
+  } finally {
+    btn.disabled = false; btn.textContent = t;
+  }
+};
+
+/* ---------- Exportar a PDF (vía impresión del navegador) ---------- */
+document.getElementById("btnExportPdf").onclick = async () => {
+  if (!project.items.length) { alert("Agrega al menos un ítem antes de exportar."); return; }
+  // abrir la pestaña dentro del gesto del usuario (evita el bloqueo de pop-ups)
+  const win = window.open("", "_blank");
+  if (!win) { alert("Permite las ventanas emergentes para exportar a PDF, o usa “Exportar HTML” y luego Imprimir → Guardar como PDF."); return; }
+  win.document.write("<p style='font-family:sans-serif;padding:24px;color:#555'>Generando informe… puedes esperar aquí.</p>");
+  const btn = document.getElementById("btnExportPdf");
+  btn.disabled = true; const t = btn.textContent; btn.textContent = "Preparando…";
+  try {
+    const itemsHtml = await buildItemsHtml();
+    const html = buildReportHtml(project.titulo || "Informe de Visita", itemsHtml, true /* autoPrint */);
+    win.document.open(); win.document.write(html); win.document.close();
+  } catch (e) {
+    console.error(e); win.document.body.innerHTML = "<p style='font-family:sans-serif;padding:24px;color:#c00'>Ocurrió un error generando el informe.</p>";
+  } finally {
+    btn.disabled = false; btn.textContent = t;
+  }
+};
+
+function esc(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+function buildReportHtml(titulo, itemsHtml, autoPrint) {
+  const printScript = autoPrint
+    ? `<script>function imgsReady(){return Promise.all([...document.images].map(im=>im.complete?1:new Promise(r=>{im.onload=im.onerror=r;})));}window.addEventListener('load',()=>imgsReady().then(()=>setTimeout(()=>window.print(),250)));<\/script>`
+    : "";
+  return `<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${esc(titulo)}</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{background:#fff;font-family:'Segoe UI',Arial,sans-serif;color:#222;padding:40px 24px;max-width:960px;margin:0 auto}
+  h1{font-size:22px;font-weight:700;letter-spacing:.5px;color:#1a1a2e;border-bottom:3px solid #1a73e8;padding-bottom:12px;margin-bottom:36px;text-transform:uppercase}
+  .item{background:#fff;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:28px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,.06)}
+  .item-header{display:grid;grid-template-columns:52px 1fr 1fr;background:#f0f4ff;border-bottom:1px solid #d0d8f0}
+  .item-header>div{padding:10px 14px;font-size:12px;font-weight:700;text-transform:uppercase;color:#555;letter-spacing:.4px;border-right:1px solid #d0d8f0}
+  .item-header>div:last-child{border-right:none}
+  .item-row{display:grid;grid-template-columns:52px 1fr 1fr;border-bottom:1px solid #e8e8e8}
+  .item-row>div{padding:10px 14px;font-size:13px;border-right:1px solid #e8e8e8}
+  .item-row>div:last-child{border-right:none}
+  .item-num{font-size:18px;font-weight:800;color:#1a73e8;text-align:center;padding-top:14px!important}
+  .item-body{padding:16px 18px}
+  .detection{background:#fafafa;border-left:4px solid #ffc107;padding:12px 16px;margin-bottom:16px;border-radius:0 4px 4px 0}
+  .detection p{font-size:13px;line-height:1.6;color:#333;margin-bottom:4px}
+  .detection p:last-child{margin-bottom:0}
+  .photos{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+  .photos img{max-height:240px;max-width:100%;border-radius:6px;border:1px solid #ddd;object-fit:contain;background:#f9f9f9;cursor:zoom-in;transition:opacity .15s}
+  .photos img:hover{opacity:.85}
+  .propuesta{background:#e8f5e9;border-left:4px solid #34a853;padding:12px 16px;border-radius:0 4px 4px 0;font-size:13px;line-height:1.6;color:#1b5e20}
+  .label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:6px}
+  #lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:center;justify-content:center}
+  #lightbox.open{display:flex}
+  #lightbox img{max-width:80vw;max-height:80vh;border-radius:6px;box-shadow:0 8px 40px rgba(0,0,0,.5);cursor:zoom-out}
+  @media print {
+    body{padding:0;max-width:none}
+    h1{margin-bottom:20px}
+    .item{break-inside:avoid;page-break-inside:avoid;box-shadow:none;border:1px solid #ccc}
+    .photos img{max-height:300px}
+    #lightbox{display:none!important}
+  }
+</style></head><body>
+<h1>${esc(titulo)}</h1>
+${itemsHtml}
+<div id="lightbox"><img id="lightbox-img" src="" alt=""></div>
+<script>
+  const lb=document.getElementById('lightbox'),lbImg=document.getElementById('lightbox-img');
+  document.querySelectorAll('.photos img').forEach(img=>img.addEventListener('click',()=>{lbImg.src=img.src;lb.classList.add('open');}));
+  lb.addEventListener('click',()=>lb.classList.remove('open'));
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')lb.classList.remove('open');});
+<\/script>
+${printScript}
+</body></html>`;
+}
+
+/* ============================================================
+   ARRANQUE
+   ============================================================ */
+(async function init() {
+  try {
+    const saved = await dbLoad();
+    if (saved) { project = saved; project.items = project.items || []; }
+  } catch (e) { console.error(e); }
+  document.getElementById("tituloInput").value = project.titulo || "";
+  render();
+  document.getElementById("saveState").textContent = "✓ Guardado";
+})();
+</script>
+</body>
+</html>
